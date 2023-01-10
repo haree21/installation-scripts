@@ -1,0 +1,61 @@
+Note: Step 1 one is required if your repository is not running on https.
+
+1) create/edit daemon.json in all machines in your kubernates cluster to provide insecure-registries details.
+
+
+vi /etc/docker/daemon.json
+
+{
+  "insecure-registries": [ "13.234.21.143:8083" ],
+  "disable-legacy-registry": true
+}
+
+=======================
+In your master machine
+=======================
+
+2) Create secret for your repo credentials(One time Activity)
+
+kubectl create secret docker-registry myregistrykey --docker-server=172.31.36.229:8083 --docker-username=admin --docker-password=password --docker-email=test@test.com
+
+
+3) User your secret in your manifest files as mentioned below exmaple
+ 
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: springapp
+  name: spring-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-app
+  template:
+    metadata:
+      labels:
+        app: spring-app
+    spec:
+      containers:
+      - image: 172.31.36.229:8083/maven-web-app
+        imagePullPolicy: Always
+        name: spring-container
+      imagePullSecrets:
+      - name: myregistrykey
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

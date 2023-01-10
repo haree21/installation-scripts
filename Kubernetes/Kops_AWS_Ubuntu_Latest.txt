@@ -1,0 +1,99 @@
+Setup Kubernetes (K8s) Cluster on AWS
+
+1) Create Ubuntu EC2 instance
+
+2) install AWSCLI
+
+ sudo curl https://s3.amazonaws.com/aws-cli/awscli-bundle.zip -o awscli-bundle.zip
+ sudo apt install unzip python -y
+ sudo unzip awscli-bundle.zip
+ #sudo apt-get install unzip - if you dont have unzip in your system
+ sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+ 
+3) Install kubectl
+
+ sudo curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+
+ sudo chmod +x ./kubectl
+ sudo mv ./kubectl /usr/local/bin/kubectl
+
+4) Create an IAM role from Consloe or CLI with below Policies.
+
+	AmazonEC2FullAccess 
+	AmazonS3FullAccess
+	IAMFullAccess 
+	AmazonVPCFullAccess
+
+
+Then Attach IAM role to ubuntu server from Console Select KOPS Server --> Actions --> Instance Settings --> Attach/Replace IAM Role --> Select the role which
+You Created. --> Save.
+
+5) Install kops on ubuntu instance:
+
+	#Install wget if not installed
+	sudo apt install wget -y
+	sudo wget https://github.com/kubernetes/kops/releases/download/1.10.0/kops-linux-amd64
+	sudo chmod +x kops-linux-amd64
+	sudo mv kops-linux-amd64 /usr/local/bin/kops
+
+
+
+6) create an S3 bucket Execute below commond in KOPS Server use unique bucket name if you get bucket name(dev.k8s.testk8s.in) exists error.
+
+	aws s3 mb s3://<bucketname>
+    ex:
+	aws s3 mb s3://dev.k8s.testk8s.in
+     
+	Expose environment variable:
+
+	export NAME=myfirstcluster.k8s.local
+	export KOPS_STATE_STORE=s3://dev.k8s.testk8s.in
+ 
+7) Create sshkeys before creating cluster
+
+    ssh-keygen
+ 
+
+8)Create kubernetes cluster definitions on S3 bucket
+
+	kops create cluster --zones ap-south-1a,ap-south-1b --networking weave --master-size t2.medium --master-count 1 --node-size t2.micro --node-count=2 ${NAME}
+	kops create secret --name ${NAME} sshpublickey admin -i ~/.ssh/id_rsa.pub
+
+9)Create kubernetes cluser
+
+	 kops update cluster ${NAME} --yes
+
+10) Validate your cluster(KOPS will take some time to create cluster ,Execute below commond after 3 or 4 mins)
+
+	   kops validate cluster
+ 
+11)To list nodes
+
+	  kubectl get nodes 
+  
+  
+  
+To Delete Cluster
+
+   kops delete cluster --name=${NAME} --state=${KOPS_STATE_STORE} --yes  
+   
+   kops delete cluster --name=myfirstcluster.k8s.local --state=s3://dev.k8s.testk8s.in
+   
+====================================================================================================
+
+Create EBS if you want to use EBS Persistemnt volume for your PODS.
+
+Create EBS Volume and use the volume id
+
+aws ec2 create-volume --size 5 --region ap-south-1 --availability-zone ap-south-1a --volume-type gp2 --tag-specifications 'ResourceType=volume,Tags=[{Key=KubernetesCluster,Value=myfirstcluster.k8s.local}]'
+
+
+IF you wan to SSH to Kubernates Master or Nodes Created by KOPS. You can SSH From KOPS_Server
+
+ssh  admin@<IPOrDNS>
+it above command  is not working
+then execute
+ssh -i ~/.ssh/id_rsa admin@<IPOrDNS>
+  
+  
+  vol-02b8cdf12b3d65f4a

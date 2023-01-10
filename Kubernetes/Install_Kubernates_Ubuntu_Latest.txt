@@ -1,0 +1,123 @@
+
+
+==========COMMON FOR MASTER & SLAVES START ====
+
+sudo apt-get update -y
+sudo apt-get install -y apt-transport-https
+sudo su -
+
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+
+apt-get update -y
+
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+
+apt install docker.io -y
+usermod -aG docker ubuntu
+
+
+
+systemctl restart docker
+systemctl enable docker.service
+
+
+apt-get install -y kubelet kubeadm kubectl kubernetes-cni
+
+systemctl daemon-reload 
+systemctl start kubelet 
+systemctl enable kubelet.service
+
+==========COMMON FOR MASTER & SLAVES END=====
+
+
+
+===========In Master Node Start====================
+# Execute below commond as root user
+kubeadm init
+
+#exit root user & exeucte as normal user
+  
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+
+kubectl get nodes
+
+kubectl get pods --all-namespaces
+
+
+# Get token
+
+kubeadm token create --print-join-command
+
+=========In Master Node End====================
+
+
+
+=========In Worker Nodes Start===================
+
+
+Copy kubeadm join token and execute in   Worker Nodes to join to cluster
+
+=========In Worker Nodes End===================
+
+
+
+
+
+
+
+
+
+
+================
+Set up Dashboard
+================
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+
+
+# Service Account & Cluster Role Binding
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-admin
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: eks-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: k8s-admin
+  namespace: kube-system
+  
+
+ 
+Enable dashboard access from out side network
+===============================================
+nohup kubectl proxy --address 0.0.0.0 --accept-hosts ".*" & 
+ 
+kubectl -n kube-system get service kubernetes-dashboard 
+ 
+Edit Service Update type from clusterIp to NodePort
+==================================================== 
+kubectl -n kube-system edit service kubernetes-dashboard 
+ 
+Get Bearer token
+===================  
+kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep k8s-admin | awk '{print $1}')  
+
+

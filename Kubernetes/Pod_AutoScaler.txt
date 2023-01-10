@@ -1,0 +1,66 @@
+===Setup Metrics Server===
+
+Git Clone below repo in Kubernetes Master
+
+git clone https://github.com/kubernetes-incubator/metrics-server.git
+
+cd metrics-server
+
+kubectl create -f deploy/1.8+/
+
+# Edit Metrics Server to add args for container
+
+kubectl edit deploy -n kube-system metrics-server
+
+# Add below three lines under spec as container args under name of the container
+args:
+- --kubelet-insecure-tls
+- --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+
+
+===Create Deployment=====
+
+First, we will start a deployment running the image and expose it as a service:
+
+kubectl run php-apache --image=k8s.gcr.io/hpa-example --requests=cpu=200m --expose --port=80
+
+
+==Create Auto Scaler===
+
+We will create the autoscaler using kubectl autoscale. The following command will create a Horizontal Pod Autoscaler that maintains 
+between 1 and 10 replicas of the Pods controlled by the php-apache deployment we created in the first step of these instructions. 
+
+HPA will increase and decrease the number of replicas (via the deployment) to maintain an average CPU utilization 
+across all Pods of 50% (since each pod requests 200 milli-cores by kubectl run, this means average CPU usage of 100 milli-cores).
+
+kubectl autoscale deployment php-apache --cpu-percent=50 --min=1 --max=10
+
+
+
+kubectl get hpa
+
+
+
+====Increase load====
+
+Now, we will see how the autoscaler reacts to increased load. We will start a container, and send an infinite loop of queries to the php-apache service (please run it in a different terminal):
+
+kubectl run -i --tty load-generator --image=busybox /bin/sh
+
+
+while true; do wget -q -O- http://php-apache.default.svc.cluster.local; done
+
+==================================
+Open another ssh tab and check
+
+kubectl get hpa
+
+NAME         REFERENCE                     TARGET      CURRENT   MINPODS   MAXPODS   REPLICAS   AGE
+php-apache   Deployment/php-apache/scale   305% / 50%  305%      1         10        1          3m
+
+
+Here, CPU consumption has increased to 305% of the request. As a result, the deployment was resized to 7 replicas:
+
+kubectl get deployment php-apache
+NAME         DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+php-apache   7         7         7            7           19m
